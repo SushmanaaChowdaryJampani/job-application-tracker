@@ -37,7 +37,7 @@ def create_application(
         job_title=application.job_title,
         status=application.status,
         application_date=application.application_date,
-        source=application.source
+        source=application.source,
         job_url=application.job_url,
         notes=application.notes
     )
