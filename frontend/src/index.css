@@ -276,3 +276,64 @@ tbody tr:hover {
   border: 1px solid #d1d5db;
   background: white;
 }
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.edit-button,
+.delete-button {
+  padding: 7px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.edit-button {
+  border: 1px solid #2563eb;
+  background: white;
+  color: #2563eb;
+}
+
+.delete-button {
+  border: 1px solid #dc2626;
+  background: white;
+  color: #dc2626;
+}
+
+.edit-button:hover {
+  background: #eff6ff;
+}
+
+.delete-button:hover {
+  background: #fef2f2;
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover {
+  background: #f8fafc;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.details-grid p {
+  margin: 6px 0 0;
+  color: #555;
+}
+
+.details-grid a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.details-grid a:hover {
+  text-decoration: underline;
+}

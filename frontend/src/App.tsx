@@ -35,6 +35,13 @@ function App() {
   const [statusFilter, setStatusFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
 
+  const [editingApplicationId, setEditingApplicationId] = useState<
+    number | null
+  >(null);
+
+  const [selectedApplication, setSelectedApplication] =
+    useState<JobApplication | null>(null);
+
   const [newApplication, setNewApplication] = useState({
     company: "",
     job_title: "",
@@ -57,50 +64,136 @@ function App() {
       .catch((error) => console.error("Error loading applications:", error));
   }, []);
 
+  const refreshSummary = async () => {
+    const summaryResponse = await fetch(
+      "http://127.0.0.1:8000/dashboard/summary",
+    );
+
+    const summaryData = await summaryResponse.json();
+    setSummary(summaryData);
+  };
+
+  const resetForm = () => {
+    setNewApplication({
+      company: "",
+      job_title: "",
+      status: "Applied",
+      application_date: "",
+      source: "",
+      job_url: "",
+      notes: "",
+    });
+
+    setEditingApplicationId(null);
+  };
+
+  const handleOpenAddForm = () => {
+    resetForm();
+    setShowForm(true);
+  };
+
+  const handleEditApplication = (application: JobApplication) => {
+    setEditingApplicationId(application.id);
+
+    setNewApplication({
+      company: application.company,
+      job_title: application.job_title,
+      status: application.status,
+      application_date: application.application_date || "",
+      source: application.source || "",
+      job_url: application.job_url || "",
+      notes: application.notes || "",
+    });
+
+    setShowForm(true);
+  };
+
+  const handleCloseForm = () => {
+    setShowForm(false);
+    resetForm();
+  };
+
   const handleSaveApplication = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/applications", {
-        method: "POST",
+      const payload = {
+        ...newApplication,
+        application_date: newApplication.application_date || null,
+        source: newApplication.source || null,
+        job_url: newApplication.job_url || null,
+        notes: newApplication.notes || null,
+      };
+
+      const isEditing = editingApplicationId !== null;
+
+      const url = isEditing
+        ? `http://127.0.0.1:8000/applications/${editingApplicationId}`
+        : "http://127.0.0.1:8000/applications";
+
+      const response = await fetch(url, {
+        method: isEditing ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...newApplication,
-          application_date: newApplication.application_date || null,
-          source: newApplication.source || null,
-          job_url: newApplication.job_url || null,
-          notes: newApplication.notes || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to save application");
+        throw new Error(
+          isEditing
+            ? "Failed to update application"
+            : "Failed to save application",
+        );
       }
 
       const savedApplication = await response.json();
 
-      setApplications((current) => [...current, savedApplication]);
+      if (isEditing) {
+        setApplications((current) =>
+          current.map((application) =>
+            application.id === editingApplicationId
+              ? savedApplication
+              : application,
+          ),
+        );
+      } else {
+        setApplications((current) => [...current, savedApplication]);
+      }
 
-      const summaryResponse = await fetch(
-        "http://127.0.0.1:8000/dashboard/summary",
-      );
-
-      const summaryData = await summaryResponse.json();
-      setSummary(summaryData);
-
-      setNewApplication({
-        company: "",
-        job_title: "",
-        status: "Applied",
-        application_date: "",
-        source: "",
-        job_url: "",
-        notes: "",
-      });
-
-      setShowForm(false);
+      await refreshSummary();
+      handleCloseForm();
     } catch (error) {
       console.error("Error saving application:", error);
+    }
+  };
+
+  const handleDeleteApplication = async (applicationId: number) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this application?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/applications/${applicationId}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to delete application");
+      }
+
+      setApplications((current) =>
+        current.filter((application) => application.id !== applicationId),
+      );
+
+      await refreshSummary();
+    } catch (error) {
+      console.error("Error deleting application:", error);
     }
   };
 
@@ -125,7 +218,7 @@ function App() {
         <nav>
           <p>Dashboard</p>
           <p>Applications</p>
-          <p onClick={() => setShowForm(true)}>Add Application</p>
+          <p onClick={handleOpenAddForm}>Add Application</p>
           <p>Email Sync</p>
         </nav>
       </aside>
@@ -191,7 +284,7 @@ function App() {
               <option value="Rejected">Rejected</option>
             </select>
 
-            <button type="button" onClick={() => setShowForm(true)}>
+            <button type="button" onClick={handleOpenAddForm}>
               Add Application
             </button>
           </div>
@@ -204,23 +297,54 @@ function App() {
                 <th>Status</th>
                 <th>Application Date</th>
                 <th>Source</th>
+                <th>Actions</th>
               </tr>
             </thead>
 
             <tbody>
               {filteredApplications.map((application) => (
-                <tr key={application.id}>
+                <tr
+                  key={application.id}
+                  className="clickable-row"
+                  onClick={() => setSelectedApplication(application)}
+                >
                   <td>{application.company}</td>
                   <td>{application.job_title}</td>
                   <td>{application.status}</td>
                   <td>{application.application_date || "-"}</td>
                   <td>{application.source || "-"}</td>
+
+                  <td>
+                    <div className="action-buttons">
+                      <button
+                        type="button"
+                        className="edit-button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditApplication(application);
+                        }}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        className="delete-button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteApplication(application.id);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
 
               {filteredApplications.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="no-results">
+                  <td colSpan={6} className="no-results">
                     No applications found.
                   </td>
                 </tr>
@@ -234,12 +358,16 @@ function App() {
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <h2>Add New Application</h2>
+              <h2>
+                {editingApplicationId
+                  ? "Edit Application"
+                  : "Add New Application"}
+              </h2>
 
               <button
                 type="button"
                 className="close-button"
-                onClick={() => setShowForm(false)}
+                onClick={handleCloseForm}
               >
                 ×
               </button>
@@ -353,7 +481,7 @@ function App() {
               <button
                 type="button"
                 className="secondary-button"
-                onClick={() => setShowForm(false)}
+                onClick={handleCloseForm}
               >
                 Cancel
               </button>
@@ -363,8 +491,77 @@ function App() {
                 className="primary-button"
                 onClick={handleSaveApplication}
               >
-                Save Application
+                {editingApplicationId
+                  ? "Update Application"
+                  : "Save Application"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedApplication && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h2>Application Details</h2>
+
+              <button
+                type="button"
+                className="close-button"
+                onClick={() => setSelectedApplication(null)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="details-grid">
+              <div>
+                <strong>Company</strong>
+                <p>{selectedApplication.company}</p>
+              </div>
+
+              <div>
+                <strong>Job Title</strong>
+                <p>{selectedApplication.job_title}</p>
+              </div>
+
+              <div>
+                <strong>Status</strong>
+                <p>{selectedApplication.status}</p>
+              </div>
+
+              <div>
+                <strong>Application Date</strong>
+                <p>{selectedApplication.application_date || "-"}</p>
+              </div>
+
+              <div>
+                <strong>Source</strong>
+                <p>{selectedApplication.source || "-"}</p>
+              </div>
+
+              <div>
+                <strong>Job URL</strong>
+                <p>
+                  {selectedApplication.job_url ? (
+                    <a
+                      href={selectedApplication.job_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open Job Posting
+                    </a>
+                  ) : (
+                    "-"
+                  )}
+                </p>
+              </div>
+
+              <div className="full-width">
+                <strong>Notes</strong>
+                <p>{selectedApplication.notes || "-"}</p>
+              </div>
             </div>
           </div>
         </div>
